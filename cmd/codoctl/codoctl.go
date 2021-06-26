@@ -1,16 +1,20 @@
 package main
 
 import (
+	// Standard library
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 
+	// 3rd Party
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
+
+	// Internal
+	"codo/internal"
 )
 
 
@@ -31,7 +35,6 @@ func BuildImage(imagesFolder string, imageName string) {
 		log.Printf("failed to read %v config: %v\n", imageName, err)
 		return
 	}
-	fmt.Printf("parsed config: %v\n", imageConfig)
 
 	// Create the Dockerfile text
 	baseImage, configHasBaseImage := imageConfig["base-image"]
@@ -42,13 +45,7 @@ func BuildImage(imagesFolder string, imageName string) {
 	dockerfileText := fmt.Sprintf("FROM %v\n", baseImage)
 
 	// Create the Dockerfile
-	user, err := user.Current()
-	if err != nil {
-		log.Printf("failed to get current user: %v\n", err)
-		return
-	}
-	username := user.Username
-	dockerfileDir := filepath.Join("/","tmp", "codo", username, imageName)
+	dockerfileDir := filepath.Join("/","tmp", "codo", imageName)
 	err = os.MkdirAll(dockerfileDir, 0755)
 	if err != nil {
 		log.Printf("failed to create Dockerfile directory for %v: %v\n", imageName, err)
@@ -62,8 +59,8 @@ func BuildImage(imagesFolder string, imageName string) {
 	}
 
 	// Build the image
-	codoImageName := fmt.Sprintf("codo-%v-%v", username, imageName)
-	buildCommand := exec.Command("sudo", "docker", "build", "-t", codoImageName, dockerfileDir)
+	fullImageName := internal.GetFullImageName(imageName)
+	buildCommand := exec.Command("sudo", "docker", "build", "-t", fullImageName, dockerfileDir)
 	err = buildCommand.Run()
 	if err != nil {
 		log.Printf("failed to build image for %v: %v\n", imageName, err)
@@ -72,7 +69,10 @@ func BuildImage(imagesFolder string, imageName string) {
 }
 
 
-func BuildAllImages(configFolder string) {
+func BuildAllImages() {
+	// Get the config folder
+	configFolder := internal.GetConfigDir()
+
 	// Build each of the images
 	imagesFolder := filepath.Join(configFolder, "images")
 	imagesFolderContents, err := ioutil.ReadDir(imagesFolder)
@@ -92,16 +92,8 @@ func main() {
 	buildAllFlag := pflag.BoolP("buildall", "B", false, "Build images")
 	pflag.Parse()
 
-	// Get the config folder
-	home, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("Unable to get home directory: %v", err)
-	}
-	configFolder := filepath.Join(home, ".config", "codo")
-
 	// Check if images are to be built
-	fmt.Println(*buildAllFlag)
 	if *buildAllFlag {
-		BuildAllImages(configFolder)
+		BuildAllImages()
 	}
 }
