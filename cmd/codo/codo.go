@@ -30,8 +30,7 @@ func main() {
 	codoConfig := make(map[interface{}]interface{})
 	err = yaml.Unmarshal(codoConfigContent, &codoConfig)
 	if err != nil {
-		log.Printf("failed to parse config: %v\n", err)
-		return
+		log.Fatalf("failed to parse config: %v\n", err)
 	}
 
 	// Get the default image name
@@ -42,9 +41,13 @@ func main() {
 
 	// Run the command in the docker container
 	fullImageName := internal.GetFullImageName(defaultImage.(string))
-	commandContents :=	[]string{"sudo", "docker", "run", "--rm", fullImageName}
+	commandContents := []string{"sudo", "docker", "run", "-ti", "--rm", fullImageName}
 	commandContents = append(commandContents, os.Args[1:]...)
+	log.Printf("Running %v\n", commandContents)
 	command := exec.Command(commandContents[0], commandContents[1:]...)
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
 	err = command.Run()
 	if err != nil {
 		log.Fatalf("failed to run command %v: %v\n", commandContents, err)
