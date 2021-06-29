@@ -38,10 +38,20 @@ func main() {
 	if ! configHasDefaultImage {
 		log.Fatalf("no default image found in %v\n", configFolder)
 	}
+	defaultImageName := defaultImage.(string)
+	imageName := defaultImageName
+
+	// Determine if attach pwd
+	imageConfig := internal.GetImageConfig(imageName)
+	attachPwd := imageConfig["attach-pwd"].(bool)
 
 	// Run the command in the docker container
-	fullImageName := internal.GetFullImageName(defaultImage.(string))
-	commandContents := []string{"sudo", "docker", "run", "-ti", "--rm", fullImageName}
+	fullImageName := internal.GetFullImageName(imageName)
+	commandContents := []string{"sudo", "docker", "run", "-ti", "--rm"}
+	if attachPwd {
+		commandContents = append(commandContents, "-v", "\"$(pwd)\":/codo")
+	}
+	commandContents = append(commandContents, fullImageName)
 	commandContents = append(commandContents, os.Args[1:]...)
 	log.Printf("Running %v\n", commandContents)
 	command := exec.Command(commandContents[0], commandContents[1:]...)

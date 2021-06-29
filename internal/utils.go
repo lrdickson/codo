@@ -15,29 +15,13 @@ import (
 )
 
 func BuildImage(imagesFolder string, imageName string) {
-	// Get the contents of the image config file
-	imageFolder := filepath.Join(imagesFolder, imageName)
-	imageConfigFile := filepath.Join(imageFolder, "config.yaml")
-	imageConfigContent, err := ioutil.ReadFile(imageConfigFile)
-	if err != nil {
-		log.Printf("failed to read %v config: %v\n", imageName, err)
-		return
-	}
-
-	// Parse the contents
-	imageConfig := make(map[interface{}]interface{})
-	err = yaml.Unmarshal(imageConfigContent, &imageConfig)
-	if err != nil {
-		log.Printf("failed to read %v config: %v\n", imageName, err)
-		return
-	}
-	passGui, configHasPassGui := imageConfig["pass-gui"]
-	if ! configHasPassGui {
-		passGui = false
-	}
+	// Get the image config
+	imageConfig := GetImageConfig(imageName)
+	passGui := imageConfig["pass-gui"]
 	log.Println(passGui)
 
 	// Read the input docker file
+	imageFolder := GetImageFolder(imageName)
 	inputDockerfile := filepath.Join(imageFolder, "Dockerfile")
 	inputDockerfileText, err := ioutil.ReadFile(inputDockerfile)
 	if err != nil {
@@ -111,6 +95,43 @@ func GetFullImageName(imageName string) string {
 	username := GetUsername()
 	return fmt.Sprintf("codo-%v-%v", username, imageName)
 }
+
+func GetImageConfig(imageName string) map[interface{}]interface{} {
+	imageConfig := make(map[interface{}]interface{})
+	imageConfig["pass-gui"] = true
+	imageConfig["attach-pwd"] = true
+
+	// Get the contents of the image config file
+	imageFolder := GetImageFolder(imageName)
+	imageConfigFile := filepath.Join(imageFolder, "config.yaml")
+	imageConfigContent, err := ioutil.ReadFile(imageConfigFile)
+	if err != nil {
+		log.Printf("failed to read %v config: %v\n", imageName, err)
+		return imageConfig
+	}
+
+	// Parse the contents
+	err = yaml.Unmarshal(imageConfigContent, &imageConfig)
+	if err != nil {
+		log.Printf("failed to parse %v config: %v\n", imageName, err)
+		return imageConfig
+	}
+	return imageConfig
+}
+
+func GetImageFolder(imageName string) string {
+	imagesFolder := GetImagesFolder()
+	return filepath.Join(imagesFolder, imageName)
+}
+
+func GetImagesFolder() string {
+	// Get the config folder
+	configFolder := GetConfigDir()
+
+	// Build each of the images
+	return filepath.Join(configFolder, "images")
+}
+
 
 func GetStorageDir(imageName string) string {
 	// Get the storage folder

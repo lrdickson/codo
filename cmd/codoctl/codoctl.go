@@ -17,11 +17,8 @@ import (
 
 
 func BuildAllImages() {
-	// Get the config folder
-	configFolder := internal.GetConfigDir()
-
 	// Build each of the images
-	imagesFolder := filepath.Join(configFolder, "images")
+	imagesFolder := internal.GetImagesFolder()
 	imagesFolderContents, err := ioutil.ReadDir(imagesFolder)
 	if err != nil {
 		log.Fatalf("Unable to get contents of images folder: %v", err)
