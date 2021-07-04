@@ -2,6 +2,7 @@ package main
 
 import (
 	// Standard library
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -12,12 +13,18 @@ import (
 	"gopkg.in/yaml.v2"
 
 	// Internal
-	"codo/internal"
+	"codo/internal/config"
+	"codo/internal/utils"
 )
 
 func main() {
+	// Determine if there is any command to run
+	if len(os.Args) < 2 {
+		return
+	}
+
 	// Get the config folder
-	configFolder := internal.GetConfigDir()
+	configFolder := config.GetConfigDir()
 
 	// Get the contents of the image config file
 	codoConfigFile := filepath.Join(configFolder, "config.yaml")
@@ -41,19 +48,30 @@ func main() {
 	defaultImageName := defaultImage.(string)
 	imageName := defaultImageName
 
-	// Determine if attach pwd
-	imageConfig := internal.GetImageConfig(imageName)
-	attachPwd := imageConfig["attach-pwd"].(bool)
+	// Build the command to run
+	commandContents := []string{"sudo", "docker", "run", "-ti", "--rm"}
+
+	// Bind the working directory
+	imageConfig := config.GetImageConfig(imageName)
+	bindWorkdingDir := imageConfig[config.BindWorkingDir].(bool)
+	if bindWorkdingDir {
+		workingDirectory, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("failed to get the host working directory: %v\n", err)
+		}
+		bindWDParam := fmt.Sprintf("%v:/codo", workingDirectory)
+		commandContents = append(commandContents, "-v", bindWDParam, "-w", "/codo")
+	}
+
+	// Add the image name
+	fullImageName := utils.GetFullImageName(imageName)
+	commandContents = append(commandContents, fullImageName)
+
+	// Add the argument to be run in the container
+	commandContents = append(commandContents, os.Args[1:]...)
 
 	// Run the command in the docker container
-	fullImageName := internal.GetFullImageName(imageName)
-	commandContents := []string{"sudo", "docker", "run", "-ti", "--rm"}
-	if attachPwd {
-		commandContents = append(commandContents, "-v", "\"$(pwd)\":/codo")
-	}
-	commandContents = append(commandContents, fullImageName)
-	commandContents = append(commandContents, os.Args[1:]...)
-	log.Printf("Running %v\n", commandContents)
+	//log.Printf("Running %v\n", commandContents)
 	command := exec.Command(commandContents[0], commandContents[1:]...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout

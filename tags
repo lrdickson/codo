@@ -1,0 +1,28 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_EXCMD	mixed	/number, pattern, mixed, or combineV2/
+!_TAG_OUTPUT_FILESEP	slash	/slash or backslash/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PATTERN_LENGTH_LIMIT	96	/0 for no limit/
+!_TAG_PROC_CWD	/home/lyn/go/src/codo/	//
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	5.9.0	/p5.9.20210110.0/
+BindWD	internal/config/config.go	/^const BindWD string = "bind-working-dir"$/;"	c	package:config	typeref:typename:string
+BuildAllImages	cmd/codoctl/codoctl.go	/^func BuildAllImages() {$/;"	f	package:main
+BuildImage	internal/utils/utils.go	/^func BuildImage(imagesFolder string, imageName string) {$/;"	f	package:utils
+GetConfigDir	internal/config/config.go	/^func GetConfigDir() string {$/;"	f	package:config	typeref:typename:string
+GetFullImageName	internal/utils/utils.go	/^func GetFullImageName(imageName string) string {$/;"	f	package:utils	typeref:typename:string
+GetImageConfig	internal/config/config.go	/^func GetImageConfig(imageName string) map[interface{}]interface{} {$/;"	f	package:config	typeref:typename:map[interface{}]interface{}
+GetImageFolder	internal/utils/utils.go	/^func GetImageFolder(imageName string) string {$/;"	f	package:utils	typeref:typename:string
+GetImagesFolder	internal/utils/utils.go	/^func GetImagesFolder() string {$/;"	f	package:utils	typeref:typename:string
+GetStorageDir	internal/utils/utils.go	/^func GetStorageDir(imageName string) string {$/;"	f	package:utils	typeref:typename:string
+GetUsername	internal/utils/utils.go	/^func GetUsername() string {$/;"	f	package:utils	typeref:typename:string
+PassGUI	internal/config/config.go	/^const PassGUI string = "pass-gui"$/;"	c	package:config	typeref:typename:string
+config	internal/config/config.go	/^package config$/;"	p
+main	cmd/codoctl/codoctl.go	/^func main() {$/;"	f	package:main
+main	cmd/codoctl/codoctl.go	/^package main$/;"	p
+main	codo.go	/^func main() {$/;"	f	package:main
+main	codo.go	/^package main$/;"	p
+utils	internal/utils/utils.go	/^package utils$/;"	p
