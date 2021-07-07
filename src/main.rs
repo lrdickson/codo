@@ -1,10 +1,13 @@
 // Standard libraries
 use std;
 use std::env;
+//use std::fs;
+//use std::path;
 use std::process::{Command, Stdio};
 
 // Crates
 use clap;
+//use dirs;
 use log::error;
 use log::debug;
 
@@ -12,22 +15,24 @@ use log::debug;
 mod config;
 
 fn get_flag_value<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str, default_value: &'a str) -> &'a str  {
-    match matches.index_of(flag_name) {
-        Some(index) => {
-            if index < input_command_index {
-                //matches.value_of(flag_name).expect("Failed to get flag")
-                match matches.value_of(flag_name) {
-                    Some(value) => value,
-                    None => {
-                        error!("Failed to get value for {:?}", flag_name);
-                        default_value
-                    }
-                }
-            } else {
-                default_value
-            }
-        },
-        None => default_value
+    // Get the flag index
+    let flag_index = match matches.index_of(flag_name) {
+        Some(index) => index,
+        None => return default_value
+    };
+
+    // Return the default value if the flag is part of the command
+    if flag_index > input_command_index {
+        return default_value;
+    }
+
+    // Get the flag value
+    match matches.value_of(flag_name) {
+        Some(value) => value,
+        None => {
+            error!("Failed to get value for {:?}", flag_name);
+            default_value
+        }
     }
 }
 
@@ -108,6 +113,23 @@ fn main() {
             error!("Failed to get working directory: {:?}", err);
         }
     };
+
+    /*
+    // Create the storage directory
+    let home_dir: path::PathBuf;
+    match dirs::home_dir() {
+        Some(dir) => {
+            let mut image_storage_dir = dir;
+            image_storage_dir.push("codo");
+            image_storage_dir.push(image_name);
+            match fs::create_dir_all(image_storage_dir) {
+                Ok(ok) => (),
+                Err(err) => ()
+            }
+        },
+        None => ()
+    };
+    */
 
     // Add the image name
     let full_image_name = image_name;
