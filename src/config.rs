@@ -19,15 +19,34 @@ pub fn get_codo_config() -> Yaml {
         .expect("Failed to parse default codo config.")[0]
         .to_owned();
 
-    // Get the codo config directory
-    let codo_config_dir = match get_codo_config_dir() {
+    // Get the codo config file
+    let mut codo_config_file = match get_codo_config_dir() {
         Some(dir) => dir,
         None => return default_codo_config
     };
+    codo_config_file.push("codo.yaml");
 
     // Check if the codo config file exists
-    
-    return default_codo_config;
+    let codo_config_path = path::Path::new(&codo_config_file);
+    if !( codo_config_path.exists() && codo_config_path.is_file() ) {
+        return default_codo_config;
+    }
+
+    // Read the config file
+    let codo_config = match fs::read_to_string(&codo_config_file) {
+        Ok(ok) => ok,
+        Err(err) => {
+            panic!("Failed to read {:?}: {:?}\n Using default config.", codo_config_file, err);
+        }
+    };
+
+    // Parse the config file
+    match YamlLoader::load_from_str(&codo_config) {
+        Ok(config) => config[0].to_owned(),
+        Err(err) => {
+            panic!("Failed to parse {:?}: {:?}\n Using default config.", codo_config_file, err);
+        }
+    }
 }
 
 pub fn get_codo_config_dir() -> Option<path::PathBuf> {
