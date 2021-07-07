@@ -1,4 +1,5 @@
 // Standard
+use std;
 use std::fs;
 use std::path;
 
@@ -13,7 +14,7 @@ const DEFAULT_CODO_CONFIG: &str = "
 default-image: fedora
 ";
 
-pub fn get_codo_config() -> Yaml {
+pub fn get_codo_config<'a>() -> Result<Yaml, Box<dyn std::error::Error>> {
     // Get the default codo config as a fallback
     let default_codo_config = YamlLoader::load_from_str(DEFAULT_CODO_CONFIG)
         .expect("Failed to parse default codo config.")[0]
@@ -22,31 +23,20 @@ pub fn get_codo_config() -> Yaml {
     // Get the codo config file
     let mut codo_config_file = match get_codo_config_dir() {
         Some(dir) => dir,
-        None => return default_codo_config
+        None => return Ok(default_codo_config)
     };
     codo_config_file.push("codo.yaml");
 
     // Check if the codo config file exists
     let codo_config_path = path::Path::new(&codo_config_file);
     if !( codo_config_path.exists() && codo_config_path.is_file() ) {
-        return default_codo_config;
+        return Ok(default_codo_config);
     }
-
-    // Read the config file
-    let codo_config = match fs::read_to_string(&codo_config_file) {
-        Ok(ok) => ok,
-        Err(err) => {
-            panic!("Failed to read {:?}: {:?}\n Using default config.", codo_config_file, err);
-        }
-    };
 
     // Parse the config file
-    match YamlLoader::load_from_str(&codo_config) {
-        Ok(config) => config[0].to_owned(),
-        Err(err) => {
-            panic!("Failed to parse {:?}: {:?}\n Using default config.", codo_config_file, err);
-        }
-    }
+    let codo_config = fs::read_to_string(&codo_config_file)?;
+    let codo_config = YamlLoader::load_from_str(&codo_config)?[0].to_owned();
+    return Ok(codo_config);
 }
 
 pub fn get_codo_config_dir() -> Option<path::PathBuf> {

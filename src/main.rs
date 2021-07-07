@@ -1,28 +1,20 @@
 // Standard libraries
 use std;
 use std::env;
-//use std::fs;
-//use std::path;
 use std::process::{Command, Stdio};
 
 // Crates
 use clap;
-//use dirs;
 use log::error;
 use log::debug;
 
 // Internal
+mod build;
 mod config;
 
-fn get_flag_value<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str, default_value: &'a str) -> &'a str  {
-    // Get the flag index
-    let flag_index = match matches.index_of(flag_name) {
-        Some(index) => index,
-        None => return default_value
-    };
-
-    // Return the default value if the flag is part of the command
-    if flag_index > input_command_index {
+fn get_arg_value<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str, default_value: &'a str) -> &'a str  {
+    // Return the default value if the argument wasn't passed
+    if arg_passed(matches, input_command_index, flag_name) {
         return default_value;
     }
 
@@ -36,6 +28,17 @@ fn get_flag_value<'a>(matches: &'a clap::ArgMatches, input_command_index: usize,
     }
 }
 
+fn arg_passed<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str) -> bool  {
+    // Get the flag index
+    let flag_index = match matches.index_of(flag_name) {
+        Some(index) => index,
+        None => return false
+    };
+
+    // Flag only counts if it comes before the input command
+    return flag_index > input_command_index;
+}
+
 fn main() {
     // Start the enviromental logger
     env_logger::init();
@@ -45,13 +48,11 @@ fn main() {
         .version("0.1")
         .author("Lyndsey R. M. Dickson")
         .about("Runs a single command in a container")
-        /*
         .arg(clap::Arg::with_name("build")
              .short("b")
              .long("build")
              .help("Build the selected image")
              .takes_value(false))
-             */
         .arg(clap::Arg::with_name("image")
              .short("i")
              .long("image")
@@ -78,16 +79,27 @@ fn main() {
     debug!("Input command: {:?}", input_command);
 
     // Get the image being used
-    let codo_config = config::get_codo_config();
+    let codo_config = match config::get_codo_config() {
+        Ok(ok) => ok,
+        Err(err) => {
+            println!("Failed to read config file: {:?}", err);
+            return;
+        }
+    };
     let default_image_name = codo_config[config::DEFAULT_IMAGE]
                 .as_str()
                 .expect("Failed to get default image");
-    let image_name = get_flag_value(&matches, input_command_index, "image", default_image_name);
+    let image_name = get_arg_value(&matches, input_command_index, "image", default_image_name);
     debug!("Image: {:?}", image_name);
+
+    // Determine if the image needs be built
+    let build_image = arg_passed(&matches, input_command_index, "build");
+    debug!("Build: {:?}", build_image);
+    if build_image { build::build_image(image_name); }
 
     // Check if any arguments were passed
     if input_command.len() < 1 {
-        debug!("No arguments passed. Exitting.");
+        debug!("No arguments passed. Exiting.");
         return;
     }
 
