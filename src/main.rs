@@ -12,23 +12,23 @@ use log::debug;
 mod build;
 mod config;
 
-fn get_arg_value<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str, default_value: &'a str) -> &'a str  {
+fn get_arg_value(matches: &clap::ArgMatches, input_command_index: usize, flag_name: &str, default_value: &str) -> String  {
     // Return the default value if the argument wasn't passed
     if arg_passed(matches, input_command_index, flag_name) {
-        return default_value;
+        return default_value.to_string();
     }
 
     // Get the flag value
     match matches.value_of(flag_name) {
-        Some(value) => value,
+        Some(value) => value.to_string(),
         None => {
             error!("Failed to get value for {:?}", flag_name);
-            default_value
+            default_value.to_string()
         }
     }
 }
 
-fn arg_passed<'a>(matches: &'a clap::ArgMatches, input_command_index: usize, flag_name: &'a str) -> bool  {
+fn arg_passed(matches: &clap::ArgMatches, input_command_index: usize, flag_name: &str) -> bool  {
     // Get the flag index
     let flag_index = match matches.index_of(flag_name) {
         Some(index) => index,
@@ -67,11 +67,10 @@ fn main() {
 
     // Get the command to be run
     let args: Vec<String> = env::args().collect();
-    let mut input_command: Vec<&str> = Vec::new();
+    let mut input_command: Vec<String> = Vec::new();
     let input_command_index = match matches.index_of("COMMAND") {
         Some(index) => {
-            input_command = vec![];
-            for s in args[index..].iter() { input_command.push(s.as_str()); }
+            input_command.append(&mut args[index..].to_vec());
             index
         },
         None => args.len(),
@@ -95,7 +94,15 @@ fn main() {
     // Determine if the image needs be built
     let build_image = arg_passed(&matches, input_command_index, "build");
     debug!("Build: {:?}", build_image);
-    if build_image { build::build_image(image_name); }
+    if build_image { 
+        match build::build_image(&image_name) {
+            Ok(_) => (),
+            Err(err) => {
+                println!("Failed to build image: {:?}", err);
+                return;
+            }
+        }; 
+    }
 
     // Check if any arguments were passed
     if input_command.len() < 1 {
@@ -104,18 +111,21 @@ fn main() {
     }
 
     // Build the container run command
-    let mut command_contents: Vec<&str> = vec!["sudo", "docker", "run", "-ti", "--rm"];
+    let mut command_contents: Vec<String> = vec!["sudo", "docker", "run", "-ti", "--rm"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
     // Add binding to working directory
     let bind_param: String;
     match env::current_dir() {
         Ok(ok) => match ok.into_os_string().into_string() {
             Ok(working_dir) => {
-                command_contents.push("-v");
+                command_contents.push("-v".to_string());
                 bind_param = format!("{}:/codo", working_dir);
-                command_contents.push(bind_param.as_str());
-                command_contents.push("-w");
-                command_contents.push("/codo");
+                command_contents.push(bind_param);
+                command_contents.push("-w".to_string());
+                command_contents.push("/codo".to_string());
             },
             Err(err) => {
                 error!("Failed to get working directory: {:?}", err);
@@ -152,15 +162,14 @@ fn main() {
 
     // Start the container
     debug!("Running {:?}", command_contents);
-    match Command::new(command_contents[0])
+    match Command::new(&command_contents[0])
         .args(&command_contents[1..])
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .output() {
-        Ok(result) => result,
+        Ok(_) => (),
         Err(err) => {
-            error!("Failed to execute command: {:?}", err);
-            return;
+            println!("Failed to execute command: {:?}", err);
         }
     };
 }
