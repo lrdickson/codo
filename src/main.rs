@@ -9,12 +9,13 @@ use log::error;
 use log::debug;
 
 // Internal
-mod build;
+mod codo_error;
 mod config;
+mod image;
 
 fn get_arg_value(matches: &clap::ArgMatches, input_command_index: usize, flag_name: &str, default_value: &str) -> String  {
     // Return the default value if the argument wasn't passed
-    if arg_passed(matches, input_command_index, flag_name) {
+    if !arg_passed(matches, input_command_index, flag_name) {
         return default_value.to_string();
     }
 
@@ -34,9 +35,10 @@ fn arg_passed(matches: &clap::ArgMatches, input_command_index: usize, flag_name:
         Some(index) => index,
         None => return false
     };
+    debug!("{:?} index: {:?}", flag_name, flag_index);
 
     // Flag only counts if it comes before the input command
-    return flag_index > input_command_index;
+    return flag_index < input_command_index;
 }
 
 fn main() {
@@ -44,7 +46,7 @@ fn main() {
     env_logger::init();
 
     // Get the flags
-    let matches = clap::App::new("codo")
+    let mut app = clap::App::new("codo")
         .version("0.1")
         .author("Lyndsey R. M. Dickson")
         .about("Runs a single command in a container")
@@ -56,17 +58,27 @@ fn main() {
         .arg(clap::Arg::with_name("image")
              .short("i")
              .long("image")
-             .help("Image to build container out of")
+             .help("Image of the container to run")
              .takes_value(true))
         .arg(clap::Arg::with_name("COMMAND")
              .help("Command to be run in the container")
              .multiple(true)
              .required(false)
-             .index(1))
-        .get_matches();
+             .index(1));
 
-    // Get the command to be run
+    // Determine if any arguments were passed
     let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        match app.print_help() {
+            Ok(_) => (),
+            Err(err) => error!("Failed to print help: {:?}", err)
+        };
+        println!();
+        return;
+    }
+    
+    // Get the command to be run
+    let matches = app.get_matches();
     let mut input_command: Vec<String> = Vec::new();
     let input_command_index = match matches.index_of("COMMAND") {
         Some(index) => {
@@ -76,6 +88,7 @@ fn main() {
         None => args.len(),
     };
     debug!("Input command: {:?}", input_command);
+    debug!("Input command index: {:?}", input_command_index);
 
     // Get the image being used
     let codo_config = match config::get_codo_config() {
@@ -95,7 +108,7 @@ fn main() {
     let build_image = arg_passed(&matches, input_command_index, "build");
     debug!("Build: {:?}", build_image);
     if build_image { 
-        match build::build_image(&image_name) {
+        match image::build(&image_name) {
             Ok(_) => (),
             Err(err) => {
                 println!("Failed to build image: {:?}", err);
