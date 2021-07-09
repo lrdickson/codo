@@ -1,4 +1,5 @@
 // Standard
+use std::collections::HashMap;
 use std::error;
 use std::fs;
 use std::io;
@@ -17,7 +18,7 @@ pub fn build<S: AsRef<str>>(image_name: S) -> Result<(), Box<dyn error::Error>> 
     let image_name = image_name.as_ref();
 
     // Get the image config directory
-    let image_config_dir = match config::get_image_config_dir(image_name) {
+    let image_config_dir = match config::image_config_dir(image_name) {
         Some(value) => value,
         None => {
             let err = io::Error::new(
@@ -84,7 +85,7 @@ pub fn build<S: AsRef<str>>(image_name: S) -> Result<(), Box<dyn error::Error>> 
     return Ok(());
 }
 
-fn get_images_info() -> Result<(), Box<dyn error::Error>> {
+fn images_info() -> Result<HashMap<String, HashMap<String, String>>, Box<dyn error::Error>> {
     // Run the command
     let images_info_command: Vec<&str> = vec!["sudo", "docker", "images"];
     let images_info = Command::new(&images_info_command[0]).args(&images_info_command[1..]).output()?;
@@ -96,7 +97,45 @@ fn get_images_info() -> Result<(), Box<dyn error::Error>> {
         let err = codo_error::Error::new(codo_error::ErrorKind::ContainerEngineFailure, &err);
         return Err(Box::new(err));
     }
-    let images_info = String::from_utf8(images_info.stdout);
 
-    return Ok(());
+    // Get the header line
+    let images_info = String::from_utf8(images_info.stdout)?;
+    let mut images_info = (&images_info).lines();
+    let images_header: &str = match images_info.next() {
+        Some(header) => header,
+        None => {
+            let err = format!("Failed to get header from {:?}", images_info_command);
+            let err = codo_error::Error::new(codo_error::ErrorKind::ContainerEngineFailure, &err);
+            return Err(Box::new(err));
+        }
+    };
+    let images_header: Vec<String> = split_columns(images_header);
+
+    // Turn into a vector of hash maps
+    let images_info: Vec<HashMap<String, String>> = images_info.map(|s: &str| -> HashMap<String, String> {
+        let mut m: HashMap<String, String> = HashMap::new();
+        for (k, v) in split_columns(s).iter().zip(images_header.iter()) {
+            m.insert(k.to_owned(), v.to_owned());
+        }
+        return m;
+    }).collect();
+    let mut images_info_map: HashMap<String, HashMap<String, String>> = HashMap::new();
+    for image in images_info.iter() {
+        let key = format!("{}:{}", image["REPOSITORY"], image["TAG"]);
+        images_info_map.insert(key, image.to_owned());
+    }
+
+    return Ok(images_info_map);
 }
+
+fn split_columns(columns: &str) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+    for column in columns.split("   ") {
+        if column != "" {
+            result.push(column.trim().to_string());
+        }
+    }
+
+    return result;
+}
+

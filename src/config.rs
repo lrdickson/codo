@@ -14,14 +14,14 @@ const DEFAULT_CODO_CONFIG: &str = "
 default-image: fedora
 ";
 
-pub fn get_codo_config<'a>() -> Result<Yaml, Box<dyn std::error::Error>> {
+pub fn codo_config() -> Result<Yaml, Box<dyn std::error::Error>> {
     // Get the default codo config as a fallback
     let default_codo_config = YamlLoader::load_from_str(DEFAULT_CODO_CONFIG)
         .expect("Failed to parse default codo config.")[0]
         .to_owned();
 
     // Get the codo config file
-    let mut codo_config_file = match get_codo_config_dir() {
+    let mut codo_config_file = match codo_config_dir() {
         Some(dir) => dir,
         None => return Ok(default_codo_config)
     };
@@ -39,7 +39,7 @@ pub fn get_codo_config<'a>() -> Result<Yaml, Box<dyn std::error::Error>> {
     return Ok(codo_config);
 }
 
-pub fn get_codo_config_dir() -> Option<path::PathBuf> {
+pub fn codo_config_dir() -> Option<path::PathBuf> {
     // Get the codo config dir
     let mut codo_config_dir = match dirs::home_dir() {
         Some(dir) => dir,
@@ -58,9 +58,9 @@ pub fn get_codo_config_dir() -> Option<path::PathBuf> {
     }
 }
 
-pub fn get_image_config_dir<S: AsRef<str>>(image_name: S) -> Option<path::PathBuf> {
+pub fn image_config_dir<S: AsRef<str>>(image_name: S) -> Option<path::PathBuf> {
     // Get the image config dir
-    let mut image_config_dir = match get_codo_config_dir() {
+    let mut image_config_dir = match codo_config_dir() {
         Some(dir) => dir,
         None => return None
     };

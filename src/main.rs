@@ -13,7 +13,7 @@ mod codo_error;
 mod config;
 mod image;
 
-fn get_arg_value(matches: &clap::ArgMatches, input_command_index: usize, flag_name: &str, default_value: &str) -> String  {
+fn arg_value(matches: &clap::ArgMatches, input_command_index: usize, flag_name: &str, default_value: &str) -> String  {
     // Return the default value if the argument wasn't passed
     if !arg_passed(matches, input_command_index, flag_name) {
         return default_value.to_string();
@@ -91,7 +91,7 @@ fn main() {
     debug!("Input command index: {:?}", input_command_index);
 
     // Get the image being used
-    let codo_config = match config::get_codo_config() {
+    let codo_config = match config::codo_config() {
         Ok(ok) => ok,
         Err(err) => {
             println!("Failed to read config file: {:?}", err);
@@ -101,7 +101,7 @@ fn main() {
     let default_image_name = codo_config[config::DEFAULT_IMAGE]
                 .as_str()
                 .expect("Failed to get default image");
-    let image_name = get_arg_value(&matches, input_command_index, "image", default_image_name);
+    let image_name = arg_value(&matches, input_command_index, "image", default_image_name);
     debug!("Image: {:?}", image_name);
 
     // Determine if the image needs be built
