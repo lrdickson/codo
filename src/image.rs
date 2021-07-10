@@ -1,65 +1,61 @@
 // Standard
 use std::collections::HashMap;
+use std::env;
 use std::error;
 use std::fs;
-use std::io;
 use std::path;
 use std::process::{Command, Stdio};
 
 // Crate
 use log::error;
+use log::debug;
 
 // Internal
 use crate::config;
 use crate::codo_error;
 
 
-pub fn build<S: AsRef<str>>(image_name: S) -> Result<(), Box<dyn error::Error>> {
-    let image_name = image_name.as_ref();
-
-    // Get the image config directory
-    let image_config_dir = match config::image_config_dir(image_name) {
-        Some(value) => value,
-        None => {
-            let err = io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Failed to get config directory for {}", image_name)); 
-            return Err(Box::new(err));
-        }
-    };
-
-    // Get the Dockerfile
-    let mut dockerfile = image_config_dir.clone();
-    dockerfile.push("CodoDockerfile");
-    let dockerfile = fs::read_to_string(&dockerfile)?;
-
+pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
     // Create the directory for the temporary dockerfile
-    let mut temp_dockerfile_path = path::PathBuf::new();
-    temp_dockerfile_path.push("tmp");
+    let mut temp_dockerfile_path = env::temp_dir();
     temp_dockerfile_path.push("codo");
     fs::create_dir_all(&temp_dockerfile_path)?;
+
+    // Get the Dockerfile
+    let dockerfile: String;
+    let build_dir: path::PathBuf;
+
+    // Get the image config directory
+    match config::image_config_dir(image_name) {
+        Some(mut image_config_dir) => {
+            // Record the build directory
+            build_dir = image_config_dir.clone();
+
+            // Read the Dockerfile
+            image_config_dir.push("CodoDockerfile");
+            dockerfile = fs::read_to_string(&image_config_dir)?;
+        },
+        None => {
+            // Set the build directory to the temporary dockerfile path
+            build_dir = temp_dockerfile_path.clone();
+
+            // Create a default dockerfile
+            dockerfile = format!("FROM {}\n", image_name);
+        }
+    };
 
     // Write the final dockerfile
     temp_dockerfile_path.push("Dockerfile");
     fs::write(&temp_dockerfile_path, dockerfile)?;
     
     // Get the image tag
-    let mut tag: String = format!("{}:codo", image_name);
-    match users::get_current_username() {
-        Some(user) => {
-            match user.into_string() {
-                Ok(ok) => tag.push_str(&format!("-{}", ok)),
-                Err(_) => error!("Failed to get username as string")
-            };
-        },
-        None => ()
-    };
+    let tag: String = format!("{}:{}", image_name, codo_tag());
 
     // Create the build command
     let temp_dockerfile_path = temp_dockerfile_path
         .into_os_string().into_string().expect("Failed to convert temp Dockerfile path to string");
-    let image_config_dir = image_config_dir
-        .into_os_string().into_string().expect("Failed to convert image config directory to string");
+    let build_dir = build_dir
+        .into_os_string().into_string().expect("Failed to convert build directory to string");
     let build_command: Vec<String> = vec![
         "sudo".to_string(),
         "docker".to_string(),
@@ -73,19 +69,36 @@ pub fn build<S: AsRef<str>>(image_name: S) -> Result<(), Box<dyn error::Error>> 
         // Pull the latest image
         "--pull".to_string(),
         // Give the build directory
-        image_config_dir
+        build_dir
     ];
 
     // Run the build command
     Command::new(&build_command[0])
         .args(&build_command[1..])
         .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .output()?;
 
     return Ok(());
 }
 
-fn images_info() -> Result<HashMap<String, HashMap<String, String>>, Box<dyn error::Error>> {
+pub fn codo_tag() -> String {
+    let default_tag = "codo".to_string();
+    match users::get_current_username() {
+        Some(user) => {
+            match user.into_string() {
+                Ok(user) => format!("{}-{}", default_tag, user),
+                Err(_) => {
+                    error!("Failed to get username as string");
+                    return default_tag;
+                }
+            }
+        },
+        None => { return default_tag; }
+    }
+}
+
+pub fn images_info() -> Result<HashMap<String, HashMap<String, HashMap<String, String>>>, Box<dyn error::Error>> {
     // Run the command
     let images_info_command: Vec<&str> = vec!["sudo", "docker", "images"];
     let images_info = Command::new(&images_info_command[0]).args(&images_info_command[1..]).output()?;
@@ -110,22 +123,33 @@ fn images_info() -> Result<HashMap<String, HashMap<String, String>>, Box<dyn err
         }
     };
     let images_header: Vec<String> = split_columns(images_header);
+    debug!("Image info header: {:?}", images_header);
 
     // Turn into a vector of hash maps
     let images_info: Vec<HashMap<String, String>> = images_info.map(|s: &str| -> HashMap<String, String> {
         let mut m: HashMap<String, String> = HashMap::new();
-        for (k, v) in split_columns(s).iter().zip(images_header.iter()) {
+        for (k, v) in images_header.iter().zip(split_columns(s).iter()) {
             m.insert(k.to_owned(), v.to_owned());
         }
         return m;
     }).collect();
-    let mut images_info_map: HashMap<String, HashMap<String, String>> = HashMap::new();
+    debug!("Image info vector of hashmaps: {:?}", images_info);
+
+    // Sort out the images by repository and tag
+    let mut repositories: HashMap<String, HashMap<String, HashMap<String, String>>> = HashMap::new();
     for image in images_info.iter() {
-        let key = format!("{}:{}", image["REPOSITORY"], image["TAG"]);
-        images_info_map.insert(key, image.to_owned());
+        // Check if there is a map for this repository
+        if !repositories.contains_key(&image["REPOSITORY"]) {
+            let new_repository = HashMap::new();
+            repositories.insert(image["REPOSITORY"].to_owned(), new_repository);
+        }
+        repositories.get_mut(&image["REPOSITORY"])
+            .unwrap()
+            .insert(image["TAG"].to_owned(), image.to_owned());
     }
 
-    return Ok(images_info_map);
+    // Return the image info
+    return Ok(repositories);
 }
 
 fn split_columns(columns: &str) -> Vec<String> {

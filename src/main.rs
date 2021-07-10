@@ -104,10 +104,10 @@ fn main() {
     let image_name = arg_value(&matches, input_command_index, "image", default_image_name);
     debug!("Image: {:?}", image_name);
 
-    // Determine if the image needs be built
-    let build_image = arg_passed(&matches, input_command_index, "build");
-    debug!("Build: {:?}", build_image);
-    if build_image { 
+    // Build the image if the build argument was passed
+    let build_arg = arg_passed(&matches, input_command_index, "build");
+    debug!("Build: {:?}", build_arg);
+    if build_arg { 
         match image::build(&image_name) {
             Ok(_) => (),
             Err(err) => {
@@ -117,7 +117,7 @@ fn main() {
         }; 
     }
 
-    // Check if any arguments were passed
+    // Return if not given a command to run
     if input_command.len() < 1 {
         debug!("No arguments passed. Exiting.");
         return;
@@ -167,7 +167,24 @@ fn main() {
     */
 
     // Add the image name
-    let full_image_name = image_name;
+    let codo_tag = image::codo_tag();
+    let images_info = match image::images_info() {
+        Ok(info) => info,
+        Err(err) => {
+            println!("Failed to get image info: {:?}", err);
+            return;
+        }
+    };
+    if !(images_info.contains_key(&image_name) && images_info[&image_name].contains_key(&codo_tag)) {
+        match image::build(&image_name) {
+            Ok(_) => (),
+            Err(err) => {
+                println!("Failed to build image: {:?}", err);
+                return;
+            }
+        }; 
+    }
+    let full_image_name = format!("{}:{}", image_name, image::codo_tag());
     command_contents.push(full_image_name);
     
     // Add the input command
@@ -179,6 +196,7 @@ fn main() {
         .args(&command_contents[1..])
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .output() {
         Ok(_) => (),
         Err(err) => {

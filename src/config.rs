@@ -58,14 +58,14 @@ pub fn codo_config_dir() -> Option<path::PathBuf> {
     }
 }
 
-pub fn image_config_dir<S: AsRef<str>>(image_name: S) -> Option<path::PathBuf> {
+pub fn image_config_dir(image_name: &str) -> Option<path::PathBuf> {
     // Get the image config dir
     let mut image_config_dir = match codo_config_dir() {
         Some(dir) => dir,
         None => return None
     };
     image_config_dir.push("images");
-    image_config_dir.push(image_name.as_ref());
+    image_config_dir.push(image_name);
 
     // Check if the directory exists
     let image_config_path = path::Path::new(&image_config_dir);
