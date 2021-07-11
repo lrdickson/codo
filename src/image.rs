@@ -4,7 +4,7 @@ use std::env;
 use std::error;
 use std::fs;
 use std::path;
-use std::process::{Command, Stdio};
+use std::process::{self, Command, Stdio};
 
 // Crate
 use log::error;
@@ -14,6 +14,30 @@ use log::debug;
 use crate::config;
 use crate::codo_error;
 
+
+pub fn add_codo_tag(image_name: &str) -> String {
+    // Get the codo suffix
+    let default_tag = "codo".to_string();
+    let tag = match users::get_current_username() {
+        Some(user) => {
+            match user.into_string() {
+                Ok(user) => format!("{}-{}", default_tag, user),
+                Err(_) => {
+                    error!("Failed to get username as string");
+                    default_tag
+                }
+            }
+        },
+        None => default_tag
+    };
+
+    // Check if a tag was passed
+    if image_name.to_string().contains(":") {
+        format!("{}-{}", image_name, tag)
+    } else {
+        format!("{}:latest-{}", image_name, tag)
+    }
+}
 
 pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
     // Create the directory for the temporary dockerfile
@@ -49,7 +73,7 @@ pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
     fs::write(&temp_dockerfile_path, dockerfile)?;
     
     // Get the image tag
-    let tag: String = format!("{}:{}", image_name, codo_tag());
+    let image_with_tag = add_codo_tag(image_name);
 
     // Create the build command
     let temp_dockerfile_path = temp_dockerfile_path
@@ -62,7 +86,7 @@ pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
         "build".to_string(),
         // Add the image tag
         "-t".to_string(),
-        tag,
+        image_with_tag,
         // Add the path to the Dockerfile
         "-f".to_string(),
         temp_dockerfile_path,
@@ -73,43 +97,17 @@ pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
     ];
 
     // Run the build command
-    Command::new(&build_command[0])
-        .args(&build_command[1..])
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output()?;
+    let inherit_io = true;
+    run_command(&build_command, inherit_io)?;
 
     return Ok(());
 }
 
-pub fn codo_tag() -> String {
-    let default_tag = "codo".to_string();
-    match users::get_current_username() {
-        Some(user) => {
-            match user.into_string() {
-                Ok(user) => format!("{}-{}", default_tag, user),
-                Err(_) => {
-                    error!("Failed to get username as string");
-                    return default_tag;
-                }
-            }
-        },
-        None => { return default_tag; }
-    }
-}
-
-pub fn images_info() -> Result<HashMap<String, HashMap<String, HashMap<String, String>>>, Box<dyn error::Error>> {
+pub fn images_info() -> Result<HashMap<String, HashMap<String, String>>, Box<dyn error::Error>> {
     // Run the command
-    let images_info_command: Vec<&str> = vec!["sudo", "docker", "images"];
-    let images_info = Command::new(&images_info_command[0]).args(&images_info_command[1..]).output()?;
-    if !images_info.status.success() {
-        let err: String = match images_info.status.code() {
-            Some(code) => format!("Command {:?} failed with exit code {:?}.", images_info_command, code),
-            None => format!("Command {:?} failed.", images_info_command),
-        };
-        let err = codo_error::Error::new(codo_error::ErrorKind::ContainerEngineFailure, &err);
-        return Err(Box::new(err));
-    }
+    let images_info_command: Vec<String> = vec!["sudo".to_string(), "docker".to_string(), "images".to_string()];
+    let inherit_io = false;
+    let images_info = run_command(&images_info_command, inherit_io)?;
 
     // Get the header line
     let images_info = String::from_utf8(images_info.stdout)?;
@@ -135,6 +133,13 @@ pub fn images_info() -> Result<HashMap<String, HashMap<String, HashMap<String, S
     }).collect();
     debug!("Image info vector of hashmaps: {:?}", images_info);
 
+    // Create a map of the image info
+    let mut images_info_map: HashMap<String, HashMap<String, String>> = HashMap::new();
+    for image in images_info.iter() {
+        let key = format!("{}:{}", image["REPOSITORY"], image["TAG"]);
+        images_info_map.insert(key, image.to_owned());
+    }
+    /*
     // Sort out the images by repository and tag
     let mut repositories: HashMap<String, HashMap<String, HashMap<String, String>>> = HashMap::new();
     for image in images_info.iter() {
@@ -147,9 +152,39 @@ pub fn images_info() -> Result<HashMap<String, HashMap<String, HashMap<String, S
             .unwrap()
             .insert(image["TAG"].to_owned(), image.to_owned());
     }
+    */
 
     // Return the image info
-    return Ok(repositories);
+    return Ok(images_info_map);
+}
+
+pub fn run_command(command: &Vec<String>, inherit_io: bool) -> Result<process::Output, Box<dyn error::Error>> {
+    // Run the build command
+    let output: process::Output;
+    if inherit_io {
+        output = Command::new(&command[0])
+            .args(&command[1..])
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()?;
+    } else {
+        output = Command::new(&command[0])
+            .args(&command[1..])
+            .output()?;
+    }
+
+    // Check if the build was a success
+    if !output.status.success() {
+        let err: String = match output.status.code() {
+            Some(code) => format!("Command {:?} failed with exit code {:?}.", command, code),
+            None => format!("Command {:?} failed.", command),
+        };
+        let err = codo_error::Error::new(codo_error::ErrorKind::ContainerEngineFailure, &err);
+        return Err(Box::new(err));
+    }
+
+    return Ok(output);
 }
 
 fn split_columns(columns: &str) -> Vec<String> {

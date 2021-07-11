@@ -1,7 +1,6 @@
 // Standard libraries
 use std;
 use std::env;
-use std::process::{Command, Stdio};
 
 // Crates
 use clap;
@@ -23,7 +22,7 @@ fn arg_value(matches: &clap::ArgMatches, input_command_index: usize, flag_name: 
     match matches.value_of(flag_name) {
         Some(value) => value.to_string(),
         None => {
-            error!("Failed to get value for {:?}", flag_name);
+            error!("Failed to get value for {}", flag_name);
             default_value.to_string()
         }
     }
@@ -35,7 +34,7 @@ fn arg_passed(matches: &clap::ArgMatches, input_command_index: usize, flag_name:
         Some(index) => index,
         None => return false
     };
-    debug!("{:?} index: {:?}", flag_name, flag_index);
+    debug!("{} index: {}", flag_name, flag_index);
 
     // Flag only counts if it comes before the input command
     return flag_index < input_command_index;
@@ -71,7 +70,7 @@ fn main() {
     if args.len() < 2 {
         match app.print_help() {
             Ok(_) => (),
-            Err(err) => error!("Failed to print help: {:?}", err)
+            Err(err) => error!("Failed to print help: {}", err)
         };
         println!();
         return;
@@ -88,13 +87,13 @@ fn main() {
         None => args.len(),
     };
     debug!("Input command: {:?}", input_command);
-    debug!("Input command index: {:?}", input_command_index);
+    debug!("Input command index: {}", input_command_index);
 
     // Get the image being used
     let codo_config = match config::codo_config() {
         Ok(ok) => ok,
         Err(err) => {
-            println!("Failed to read config file: {:?}", err);
+            println!("Failed to read config file: {}", err);
             return;
         }
     };
@@ -111,7 +110,7 @@ fn main() {
         match image::build(&image_name) {
             Ok(_) => (),
             Err(err) => {
-                println!("Failed to build image: {:?}", err);
+                println!("Failed to build image: {}", err);
                 return;
             }
         }; 
@@ -145,7 +144,7 @@ fn main() {
             }
         },
         Err(err) => {
-            error!("Failed to get working directory: {:?}", err);
+            error!("Failed to get working directory: {}", err);
         }
     };
 
@@ -167,40 +166,35 @@ fn main() {
     */
 
     // Add the image name
-    let codo_tag = image::codo_tag();
+    let image_with_tag = image::add_codo_tag(&image_name);
     let images_info = match image::images_info() {
         Ok(info) => info,
         Err(err) => {
-            println!("Failed to get image info: {:?}", err);
+            println!("Failed to get image info: {}", err);
             return;
         }
     };
-    if !(images_info.contains_key(&image_name) && images_info[&image_name].contains_key(&codo_tag)) {
+    if !(images_info.contains_key(&image_with_tag)) {
         match image::build(&image_name) {
             Ok(_) => (),
             Err(err) => {
-                println!("Failed to build image: {:?}", err);
+                println!("Failed to build image: {}", err);
                 return;
             }
         }; 
     }
-    let full_image_name = format!("{}:{}", image_name, image::codo_tag());
-    command_contents.push(full_image_name);
+    command_contents.push(image_with_tag);
     
     // Add the input command
     command_contents.append(&mut input_command);
 
     // Start the container
     debug!("Running {:?}", command_contents);
-    match Command::new(&command_contents[0])
-        .args(&command_contents[1..])
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .output() {
+    let inherit_io = true;
+    match image::run_command(&command_contents, inherit_io) {
         Ok(_) => (),
         Err(err) => {
-            println!("Failed to execute command: {:?}", err);
+            println!("Failed to execute command: {}", err);
         }
     };
 }
