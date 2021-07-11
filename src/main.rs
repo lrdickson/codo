@@ -75,6 +75,10 @@ fn main() {
         println!();
         return;
     }
+
+    // Get a vector of argmuments to be parsed
+    let args_that_take_values = vec!["-i", "--image"];
+    let mut args_for_clap: Vec<String> = Vec::new();
     
     // Get the command to be run
     let matches = app.get_matches();
@@ -147,6 +151,20 @@ fn main() {
             error!("Failed to get working directory: {}", err);
         }
     };
+
+    // Add the DISPLAY environmental variable
+    let display_param: String;
+    match env::var("DISPLAY") {
+        Ok(display) => {
+            command_contents.push("-e".to_string());
+            display_param = format!("DISPLAY={}", display);
+            command_contents.push(display_param);
+            command_contents.push("-v".to_string());
+            command_contents.push("/tmp/.X11-unix:/tmp/.X11-unix".to_string());
+        }
+        Err(err) => error!("Failed to get environment variable DISPLAY: {}", err)
+    };
+
 
     /*
     // Create the storage directory

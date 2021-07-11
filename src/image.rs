@@ -68,9 +68,53 @@ pub fn build(image_name: &str) -> Result<(), Box<dyn error::Error>> {
         }
     };
 
+    // Get the username
+    let mut user_found = false;
+    let username: String;
+    let uid: users::uid_t = users::get_current_uid();
+    let gid: users::uid_t;
+    match users::get_user_by_uid(uid) {
+        Some(user) => {
+            username = match user.name().to_owned().into_string() {
+                Ok(name) => name,
+                Err(_) => {
+                    error!("Failed to get username as string");
+                    "user".to_string()
+                }
+            };
+            gid = user.primary_group_id();
+            user_found = true;
+        }
+        None => {
+            error!("Failed to get user information");
+            username = "".to_string();
+            gid = 0;
+        }
+    };
+
+    // Create the extended dockerfile
+    let mut extended_dockerfile: String = dockerfile.to_owned();
+    if user_found {
+        extended_dockerfile.push_str(format!("
+            RUN export uid={uid} gid={gid}
+            RUN mkdir -p /home/{username}
+            RUN echo \"{username}:x:${{uid}}:${{gid}}:{username},,,:/home/{username}:/bin/bash\" >> /etc/passwd
+            RUN echo \"{username}:x:${{uid}}:\" >> /etc/group
+            RUN echo \"{username} ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers
+            RUN chmod 0440 /etc/sudoers
+            RUN chown ${{uid}}:${{gid}} -R /home/{username}
+            USER {username}
+            ENV HOME /home/{username}
+            ", 
+            username = username,
+            uid = uid,
+            gid = gid).as_str());
+    }
+    debug!("Building Dockerfile: \n {}", extended_dockerfile);
+
     // Write the final dockerfile
     temp_dockerfile_path.push("Dockerfile");
-    fs::write(&temp_dockerfile_path, dockerfile)?;
+    fs::write(&temp_dockerfile_path, extended_dockerfile)?;
     
     // Get the image tag
     let image_with_tag = add_codo_tag(image_name);
