@@ -1,5 +1,6 @@
 // Standard libraries
 use std;
+use std::collections;
 use std::env;
 
 // Crates
@@ -77,21 +78,39 @@ fn main() {
     }
 
     // Get a vector of argmuments to be parsed
-    let args_that_take_values = vec!["-i", "--image"];
-    let mut args_for_clap: Vec<String> = Vec::new();
-    
-    // Get the command to be run
-    let matches = app.get_matches();
-    let mut input_command: Vec<String> = Vec::new();
-    let input_command_index = match matches.index_of("COMMAND") {
-        Some(index) => {
-            input_command.append(&mut args[index..].to_vec());
-            index
-        },
-        None => args.len(),
-    };
+    let mut args_that_take_values: collections::HashSet<&str> = collections::HashSet::new();
+    args_that_take_values.insert("-i");
+    args_that_take_values.insert("--image");
+    let mut args_to_skip = 0;
+    let mut finished = false;
+    let mut input_command_index = 0;
+    let (clap_args, mut input_command): (Vec<String>, Vec<String>) = args[1..].iter()
+        .map(|v| v.to_owned())
+        .partition(|val| {
+        if finished {
+            return false;
+        }
+        input_command_index = input_command_index + 1;
+        if args_to_skip > 0 {
+            args_to_skip = args_to_skip - 1;
+            return true;
+        } 
+        if args_that_take_values.contains(val.as_str()) {
+            args_to_skip = args_to_skip + 1;
+            return true
+        } 
+        if (val.as_bytes()[0] as char) == '-' {
+            return true;
+        }
+        finished = true;
+        return false;
+    });
+    debug!("clap args: {:?}", clap_args);
     debug!("Input command: {:?}", input_command);
     debug!("Input command index: {}", input_command_index);
+    
+    // Get the command to be run
+    let matches = app.get_matches_from(clap_args);
 
     // Get the image being used
     let codo_config = match config::codo_config() {
